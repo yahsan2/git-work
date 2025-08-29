@@ -115,13 +115,22 @@ get_worktree_path() {
     '
 }
 
+# Check if tmux is responsive (quick test)
+is_tmux_responsive() {
+    if [ -n "${TMUX:-}" ]; then
+        # Try a simple command first
+        tmux display-message -p "test" >/dev/null 2>&1
+        return $?
+    fi
+    return 1
+}
+
 # Find tmux pane by title
 find_tmux_pane_by_title() {
     local title="$1"
-    if [ -n "${TMUX:-}" ]; then
+    if [ -n "${TMUX:-}" ] && is_tmux_responsive; then
         # List all panes with their titles and IDs
         # Format: pane_id:pane_title
-        # Use timeout to prevent hanging if tmux is not responding
         local panes
         panes=$(tmux list-panes -a -F '#{pane_id}:#{pane_title}' 2>/dev/null || true)
         if [ -n "$panes" ]; then
@@ -133,7 +142,7 @@ find_tmux_pane_by_title() {
 # Switch to tmux pane by ID
 switch_to_tmux_pane() {
     local pane_id="$1"
-    if [ -n "$pane_id" ]; then
+    if [ -n "$pane_id" ] && is_tmux_responsive; then
         # Switch to the pane
         tmux switch-client -t "$pane_id" 2>/dev/null || tmux select-pane -t "$pane_id" 2>/dev/null
         return $?
@@ -143,7 +152,7 @@ switch_to_tmux_pane() {
 
 # Count tmux panes in current window
 count_tmux_panes() {
-    if [ -n "${TMUX:-}" ]; then
+    if [ -n "${TMUX:-}" ] && is_tmux_responsive; then
         local count
         count=$(tmux list-panes 2>/dev/null | wc -l | tr -d ' ' || echo "0")
         echo "$count"
@@ -154,7 +163,7 @@ count_tmux_panes() {
 
 # Get the right pane when there are 2 panes (returns pane index)
 get_right_pane() {
-    if [ -n "${TMUX:-}" ]; then
+    if [ -n "${TMUX:-}" ] && is_tmux_responsive; then
         # Get the pane on the right (higher x position)
         local panes
         panes=$(tmux list-panes -F '#{pane_index}:#{pane_left}' 2>/dev/null || true)
@@ -272,11 +281,11 @@ cmd_start() {
     abs_worktree_dir=$(cd "$worktree_dir" && pwd)
     
     # Open tmux pane if in tmux session
-    if [ -n "${TMUX:-}" ]; then
+    if [ -n "${TMUX:-}" ] && is_tmux_responsive; then
         info "Opening new tmux pane in worktree directory"
         # Set current pane title to [main] if not already in a worktree
         if ! is_worktree; then
-            tmux select-pane -T "[main]"
+            tmux select-pane -T "[main]" 2>/dev/null || true
         fi
         
         # Check pane count to determine split direction
@@ -305,7 +314,7 @@ cmd_start() {
         
         if $split_succeeded; then
             # Set new pane title to branch name
-            tmux select-pane -T "[$branch_name]" -t '{last}'
+            tmux select-pane -T "[$branch_name]" -t '{last}' 2>/dev/null || true
             # Print final status with tmux message
             echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
             echo "  Location: $abs_worktree_dir"
@@ -359,7 +368,7 @@ cmd_back() {
         info "Returning to main repository: $repo_name"
         
         # If in tmux, close the pane and return to first pane
-        if [ -n "${TMUX:-}" ]; then
+        if [ -n "${TMUX:-}" ] && is_tmux_responsive; then
             echo -e "${GREEN}✓${NC} Back to main repository"
             echo "  Location: $abs_target_dir"
             echo "  Closing tmux pane and returning to first pane"
@@ -368,7 +377,7 @@ cmd_back() {
             echo "GITWORK_CD:$abs_target_dir" >&2
             
             # Kill current pane and select first pane in the window
-            tmux kill-pane \; select-pane -t 0
+            tmux kill-pane \; select-pane -t 0 2>/dev/null || true
         else
             echo -e "${GREEN}✓${NC} Back to main repository"
             echo "  Location: $abs_target_dir"
@@ -536,10 +545,10 @@ cmd_finish() {
         echo "GITWORK_CD:$main_repo_path" >&2
         
         # If in tmux and no arguments were provided (removing current worktree), close the pane
-        if [ -n "${TMUX:-}" ] && [ -z "$branch_or_num" ]; then
+        if [ -n "${TMUX:-}" ] && [ -z "$branch_or_num" ] && is_tmux_responsive; then
             info "Closing tmux pane and returning to first pane"
             # Kill current pane and select first pane in the window
-            tmux kill-pane \; select-pane -t 0
+            tmux kill-pane \; select-pane -t 0 2>/dev/null || true
         fi
     fi
 }
@@ -652,7 +661,7 @@ cmd_move() {
     info "Moving to worktree for branch '$branch_name'"
     
     # If in tmux, check if pane already exists for this branch
-    if [ -n "${TMUX:-}" ]; then
+    if [ -n "${TMUX:-}" ] && is_tmux_responsive; then
         local existing_pane
         existing_pane=$(find_tmux_pane_by_title "[$branch_name]")
         
@@ -672,7 +681,7 @@ cmd_move() {
         if $in_main_repo; then
             info "Opening new tmux pane in worktree directory"
             # Set current pane title to [main]
-            tmux select-pane -T "[main]"
+            tmux select-pane -T "[main]" 2>/dev/null || true
             
             # Check pane count to determine split direction
             local pane_count
@@ -700,7 +709,7 @@ cmd_move() {
             
             if $split_succeeded; then
                 # Set new pane title to branch name
-                tmux select-pane -T "[$branch_name]" -t '{last}'
+                tmux select-pane -T "[$branch_name]" -t '{last}' 2>/dev/null || true
                 echo -e "${GREEN}✓${NC} Moved to worktree"
                 echo "  Branch: $branch_name"
                 echo "  Location: $worktree_path"
