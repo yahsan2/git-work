@@ -103,8 +103,9 @@ Shows all worktrees in the current repository with numbered entries for easy ref
 ### `git work move`
 
 1. **Branch name mode**: With a branch name, immediately switches to that worktree
-2. **Number mode**: With a number from `git work list`, switches to the corresponding worktree
+2. **Number mode**: With a number from `git work list`, switches to the corresponding worktree (0-based)
 3. **Auto-navigation**: Automatically changes directory to the selected worktree
+4. **Tmux integration**: When in main repository and tmux, opens new pane instead of changing directory
 
 ### `git work back`
 

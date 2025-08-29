@@ -559,13 +559,39 @@ cmd_move() {
         exit 0
     fi
     
-    info "Moving to worktree for branch '$branch_name'"
-    echo -e "${GREEN}✓${NC} Moved to worktree"
-    echo "  Branch: $branch_name"
-    echo "  Location: $worktree_path"
+    # Check if we're in the main repository (not in a worktree)
+    local in_main_repo=false
+    if ! is_worktree; then
+        in_main_repo=true
+    fi
     
-    # Output the directory path for shell function to capture
-    echo "GITWORK_CD:$worktree_path" >&2
+    info "Moving to worktree for branch '$branch_name'"
+    
+    # If in tmux and in main repository, open new pane instead of cd
+    if [ -n "${TMUX:-}" ] && $in_main_repo; then
+        info "Opening new tmux pane in worktree directory"
+        if tmux split-window -h -c "$worktree_path" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} Moved to worktree"
+            echo "  Branch: $branch_name"
+            echo "  Location: $worktree_path"
+            echo "  Opened in new tmux pane (current pane unchanged)"
+        else
+            # tmux command failed, fall back to regular behavior
+            echo -e "${GREEN}✓${NC} Moved to worktree"
+            echo "  Branch: $branch_name"
+            echo "  Location: $worktree_path"
+            # Output the directory path for shell function to capture
+            echo "GITWORK_CD:$worktree_path" >&2
+        fi
+    else
+        # Not in tmux or not in main repo, use regular cd
+        echo -e "${GREEN}✓${NC} Moved to worktree"
+        echo "  Branch: $branch_name"
+        echo "  Location: $worktree_path"
+        
+        # Output the directory path for shell function to capture
+        echo "GITWORK_CD:$worktree_path" >&2
+    fi
 }
 
 # Main command router
