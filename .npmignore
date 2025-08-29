@@ -1,0 +1,7 @@
+.git
+.gitignore
+*.log
+.DS_Store
+node_modules/
+.worktree/
+test-*.sh
