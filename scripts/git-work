@@ -225,11 +225,17 @@ cmd_start() {
     # Open tmux pane if in tmux session
     if [ -n "${TMUX:-}" ]; then
         info "Opening new tmux pane in worktree directory"
+        # Set current pane title to [main] if not already in a worktree
+        if ! is_worktree; then
+            tmux select-pane -T "[main]"
+        fi
         if tmux split-window -h -c "$abs_worktree_dir" 2>/dev/null; then
+            # Set new pane title to branch name
+            tmux select-pane -T "[$branch_name]" -t '{last}'
             # Print final status with tmux message
             echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
             echo "  Location: $abs_worktree_dir"
-            echo "  Opened in new tmux pane (current pane unchanged)"
+            echo "  Opened in new tmux pane with title: [$branch_name]"
         else
             # tmux command failed, fall back to regular behavior
             echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
@@ -570,11 +576,15 @@ cmd_move() {
     # If in tmux and in main repository, open new pane instead of cd
     if [ -n "${TMUX:-}" ] && $in_main_repo; then
         info "Opening new tmux pane in worktree directory"
+        # Set current pane title to [main]
+        tmux select-pane -T "[main]"
         if tmux split-window -h -c "$worktree_path" 2>/dev/null; then
+            # Set new pane title to branch name
+            tmux select-pane -T "[$branch_name]" -t '{last}'
             echo -e "${GREEN}✓${NC} Moved to worktree"
             echo "  Branch: $branch_name"
             echo "  Location: $worktree_path"
-            echo "  Opened in new tmux pane (current pane unchanged)"
+            echo "  Opened in new tmux pane with title: [$branch_name]"
         else
             # tmux command failed, fall back to regular behavior
             echo -e "${GREEN}✓${NC} Moved to worktree"
