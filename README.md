@@ -26,7 +26,7 @@ This will install the `git work` command globally on your system.
 ### Commands Overview
 
 ```bash
-git work start <branch>   # Create worktree and switch to it
+git work start <branch>  # Create worktree and switch to it
 git work list            # List all worktrees
 git work move [branch]   # Move to a worktree (interactive if no branch)
 git work back            # Return to main repository
