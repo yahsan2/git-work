@@ -48,6 +48,10 @@ Commands:
   back
     Return to the main repository from a worktree
     (Assumes worktree naming pattern: <repo>--<branch>)
+  
+  finish
+    Remove the current worktree and return to the main repository
+    (Must be run from within a worktree)
 
 Version: $VERSION
 EOF
@@ -223,6 +227,86 @@ cmd_back() {
     fi
 }
 
+# Subcommand: finish
+cmd_finish() {
+    # Check if we're in a worktree
+    if ! is_worktree; then
+        error "Not in a git worktree"
+    fi
+    
+    # Get current directory and branch
+    local current_dir
+    current_dir=$(pwd)
+    
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    
+    # Get worktree path and main repository path
+    local worktree_path
+    worktree_path=$(git rev-parse --show-toplevel)
+    
+    local main_repo_path
+    main_repo_path=$(git rev-parse --git-common-dir | sed 's/\.git\/worktrees\/.*//')
+    
+    # Check for uncommitted changes
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        warn "You have uncommitted changes in the worktree"
+        echo "Please commit or stash your changes before finishing."
+        exit 1
+    fi
+    
+    # Check for unpushed commits
+    local unpushed_commits
+    unpushed_commits=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
+    
+    if [ "$unpushed_commits" != "0" ]; then
+        warn "You have $unpushed_commits unpushed commit(s)"
+        echo "Consider pushing your changes before finishing."
+        read -p "Continue anyway? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            info "Finish cancelled"
+            exit 0
+        fi
+    fi
+    
+    # Parse repository name from worktree directory pattern
+    local current_dir_name
+    current_dir_name=$(basename "$current_dir")
+    
+    if [[ "$current_dir_name" =~ ^(.+)--(.+)$ ]]; then
+        local repo_name="${BASH_REMATCH[1]}"
+        local target_dir="../$repo_name"
+        
+        if [ ! -d "$target_dir" ]; then
+            error "Main repository not found at: $target_dir"
+        fi
+        
+        # Get absolute path for the main repository
+        local abs_target_dir
+        abs_target_dir=$(cd "$target_dir" && pwd)
+        
+        info "Finishing work on branch '$current_branch'"
+        
+        # Move to main repository first
+        cd "$abs_target_dir" || error "Failed to change to main repository"
+        
+        # Remove the worktree
+        info "Removing worktree at: $worktree_path"
+        git worktree remove "$worktree_path" --force || \
+            error "Failed to remove worktree. You may need to manually run: git worktree remove \"$worktree_path\""
+        
+        echo -e "${GREEN}✓${NC} Successfully finished work on branch '$current_branch'"
+        echo "  Worktree removed: $worktree_path"
+        echo "  Current location: $abs_target_dir"
+        
+        # Output the directory path for shell function to capture (hidden from normal output)
+        echo "GITWORK_CD:$abs_target_dir" >&2
+    else
+        error "Current directory doesn't match expected pattern: <repo>--<branch>"
+    fi
+}
+
 # Main command router
 main() {
     local subcommand="${1:-}"
@@ -235,6 +319,10 @@ main() {
         back)
             shift
             cmd_back "$@"
+            ;;
+        finish)
+            shift
+            cmd_finish "$@"
             ;;
         -h|--help|help)
             usage
