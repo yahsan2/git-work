@@ -121,7 +121,12 @@ find_tmux_pane_by_title() {
     if [ -n "${TMUX:-}" ]; then
         # List all panes with their titles and IDs
         # Format: pane_id:pane_title
-        tmux list-panes -a -F '#{pane_id}:#{pane_title}' 2>/dev/null | grep -F ":$title" | cut -d: -f1 | head -1
+        # Use timeout to prevent hanging if tmux is not responding
+        local panes
+        panes=$(tmux list-panes -a -F '#{pane_id}:#{pane_title}' 2>/dev/null || true)
+        if [ -n "$panes" ]; then
+            echo "$panes" | grep -F ":$title" | cut -d: -f1 | head -1
+        fi
     fi
 }
 
@@ -139,7 +144,9 @@ switch_to_tmux_pane() {
 # Count tmux panes in current window
 count_tmux_panes() {
     if [ -n "${TMUX:-}" ]; then
-        tmux list-panes 2>/dev/null | wc -l | tr -d ' '
+        local count
+        count=$(tmux list-panes 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+        echo "$count"
     else
         echo "0"
     fi
@@ -149,7 +156,11 @@ count_tmux_panes() {
 get_right_pane() {
     if [ -n "${TMUX:-}" ]; then
         # Get the pane on the right (higher x position)
-        tmux list-panes -F '#{pane_index}:#{pane_left}' 2>/dev/null | sort -t: -k2 -nr | head -1 | cut -d: -f1
+        local panes
+        panes=$(tmux list-panes -F '#{pane_index}:#{pane_left}' 2>/dev/null || true)
+        if [ -n "$panes" ]; then
+            echo "$panes" | sort -t: -k2 -nr | head -1 | cut -d: -f1
+        fi
     fi
 }
 
