@@ -26,11 +26,11 @@ This will install the `git work` command globally on your system.
 ### Commands Overview
 
 ```bash
-git work start <branch>  # Create worktree and switch to it
-git work list            # List all worktrees
-git work move [branch]   # Move to a worktree (interactive if no branch)
-git work back            # Return to main repository
-git work finish          # Remove current worktree and return to main
+git work start <branch>    # Create worktree and switch to it
+git work list              # List all worktrees with numbers
+git work move <branch|num> # Move to a worktree by name or number
+git work back              # Return to main repository
+git work finish            # Remove current worktree and return to main
 ```
 
 ### Start working on a branch
@@ -49,7 +49,7 @@ git work start hotfix ../hotfix-dir main
 ### List all worktrees
 
 ```bash
-# Show all worktrees
+# Show all worktrees with numbers
 git work list
 
 # Show in machine-readable format
@@ -59,11 +59,11 @@ git work list --porcelain
 ### Move between worktrees
 
 ```bash
-# Move to a specific worktree
+# Move to a specific worktree by name
 git work move feature-x
 
-# Interactive selection (with fzf if available)
-git work move
+# Move to a worktree by number (from git work list)
+git work move 2
 ```
 
 ### Return to main repository
@@ -92,12 +92,12 @@ git work finish
 
 ### `git work list`
 
-Shows all worktrees in the current repository. This is a convenient alias for `git worktree list`.
+Shows all worktrees in the current repository with numbered entries for easy reference. Use `--porcelain` for machine-readable output compatible with `git worktree list`.
 
 ### `git work move`
 
-1. **Direct mode**: With a branch name, immediately switches to that worktree
-2. **Interactive mode**: Without arguments, shows a numbered list or fzf interface for selection
+1. **Branch name mode**: With a branch name, immediately switches to that worktree
+2. **Number mode**: With a number from `git work list`, switches to the corresponding worktree
 3. **Auto-navigation**: Automatically changes directory to the selected worktree
 
 ### `git work back`
@@ -142,22 +142,33 @@ $ git work start origin/bugfix-123
 ### Switching between worktrees
 
 ```bash
-$ git work move
+# List worktrees to see numbers
+$ git work list
 
-Available worktrees:
+Git worktrees:
 
-  1) main
+  1) main (current)
      Path: /Users/you/projects/myapp
   2) feature-login
      Path: /Users/you/projects/myapp--feature-login
   3) bugfix-123
      Path: /Users/you/projects/myapp--bugfix-123
 
-Select worktree number (or press Enter to cancel): 2
+# Move using number
+$ git work move 2
 
 → Moving to worktree for branch 'feature-login'
 ✓ Moved to worktree
+  Branch: feature-login
   Location: /Users/you/projects/myapp--feature-login
+
+# Or move using branch name
+$ git work move bugfix-123
+
+→ Moving to worktree for branch 'bugfix-123'
+✓ Moved to worktree
+  Branch: bugfix-123
+  Location: /Users/you/projects/myapp--bugfix-123
 ```
 
 ### Returning to main repository

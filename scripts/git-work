@@ -52,15 +52,15 @@ Commands:
       git work list                                # List all worktrees
       git work list --porcelain                    # Machine-readable format
   
-  move [branch]
+  move <branch|number>
     Move to a different worktree
     
     Arguments:
-      branch         Branch name to move to (optional)
+      branch         Branch name or worktree number from list (required)
     
     Examples:
       git work move feature-x                     # Move to specific branch
-      git work move                                # Interactive selection with fzf
+      git work move 2                             # Move to worktree number 2 from list
   
   back
     Return to the main repository from a worktree
@@ -351,46 +351,64 @@ cmd_list() {
         error "Not in a git repository"
     fi
     
-    # Simply pass through to git worktree list
-    git worktree list "$@"
+    # Check if --porcelain option is used
+    if [[ "$*" == *"--porcelain"* ]]; then
+        # Pass through to git worktree list for porcelain output
+        git worktree list "$@"
+        return
+    fi
+    
+    # Custom numbered list output
+    local worktrees
+    worktrees=$(list_worktrees)
+    
+    if [ -z "$worktrees" ]; then
+        echo "No worktrees found"
+        return
+    fi
+    
+    local current_dir
+    current_dir=$(pwd)
+    
+    echo "Git worktrees:"
+    echo
+    
+    local i=1
+    while IFS='|' read -r branch path hash; do
+        if [ "$path" = "$current_dir" ]; then
+            echo "  $i) $branch (current)"
+        else
+            echo "  $i) $branch"
+        fi
+        echo "     Path: $path"
+        ((i++))
+    done <<< "$worktrees"
 }
 
 # Subcommand: move
 cmd_move() {
-    local branch_arg="${1:-}"
+    local branch_or_num="${1:-}"
     
     # Check if we're in a git repository
     if ! git rev-parse --git-dir &>/dev/null; then
         error "Not in a git repository"
     fi
     
+    # Branch argument is required
+    if [ -z "$branch_or_num" ]; then
+        error "Branch name or number required. See '$SCRIPT_NAME move --help'"
+    fi
+    
     # Get current directory for comparison
     local current_dir
     current_dir=$(pwd)
     
-    if [ -n "$branch_arg" ]; then
-        # Direct move to specified branch
-        local worktree_path
-        worktree_path=$(get_worktree_path "$branch_arg")
-        
-        if [ -z "$worktree_path" ]; then
-            error "No worktree found for branch '$branch_arg'"
-        fi
-        
-        if [ "$worktree_path" = "$current_dir" ]; then
-            warn "Already in worktree for branch '$branch_arg'"
-            exit 0
-        fi
-        
-        info "Moving to worktree for branch '$branch_arg'"
-        echo -e "${GREEN}✓${NC} Moved to worktree"
-        echo "  Branch: $branch_arg"
-        echo "  Location: $worktree_path"
-        
-        # Output the directory path for shell function to capture
-        echo "GITWORK_CD:$worktree_path" >&2
-    else
-        # Interactive selection mode
+    local worktree_path
+    local branch_name
+    
+    # Check if argument is a number
+    if [[ "$branch_or_num" =~ ^[0-9]+$ ]]; then
+        # Get worktree by number
         local worktrees
         worktrees=$(list_worktrees)
         
@@ -398,75 +416,39 @@ cmd_move() {
             error "No worktrees found"
         fi
         
-        local selected_path
+        # Get the specific line by number
+        local selected_line
+        selected_line=$(echo "$worktrees" | sed -n "${branch_or_num}p")
         
-        # Check if fzf is available and we're in an interactive terminal
-        if command -v fzf &>/dev/null && [ -t 0 ] && [ -t 1 ]; then
-            # Use fzf for interactive selection
-            local selected
-            selected=$(echo "$worktrees" | awk -F'|' '{printf "%-30s %s\n", $1, $2}' | \
-                       fzf --header="Select worktree to move to" --reverse --height=40% 2>/dev/null | \
-                       awk '{print $1}')
-            
-            if [ -z "$selected" ]; then
-                info "Move cancelled"
-                exit 0
-            fi
-            
-            selected_path=$(echo "$worktrees" | grep "^$selected|" | cut -d'|' -f2)
-        else
-            # Fallback to numbered selection
-            echo "Available worktrees:" >&2
-            echo >&2
-            
-            local i=1
-            while IFS='|' read -r branch path hash; do
-                if [ "$path" = "$current_dir" ]; then
-                    echo "  $i) $branch (current)" >&2
-                else
-                    echo "  $i) $branch" >&2
-                fi
-                echo "     Path: $path" >&2
-                ((i++))
-            done <<< "$worktrees"
-            
-            echo >&2
-            # Always show prompt on stderr and read from stdin
-            >&2 printf "Select worktree number (or press Enter to cancel): "
-            read selection
-            
-            if [ -z "$selection" ]; then
-                info "Move cancelled"
-                exit 0
-            fi
-            
-            if ! [[ "$selection" =~ ^[0-9]+$ ]]; then
-                error "Invalid selection: $selection"
-            fi
-            
-            selected_path=$(echo "$worktrees" | sed -n "${selection}p" | cut -d'|' -f2)
-            
-            if [ -z "$selected_path" ]; then
-                error "Invalid selection: $selection"
-            fi
+        if [ -z "$selected_line" ]; then
+            error "Invalid worktree number: $branch_or_num"
         fi
         
-        if [ "$selected_path" = "$current_dir" ]; then
-            warn "Already in selected worktree"
-            exit 0
+        # Extract path and branch from the selected line
+        worktree_path=$(echo "$selected_line" | cut -d'|' -f2)
+        branch_name=$(echo "$selected_line" | cut -d'|' -f1)
+    else
+        # Treat as branch name
+        branch_name="$branch_or_num"
+        worktree_path=$(get_worktree_path "$branch_name")
+        
+        if [ -z "$worktree_path" ]; then
+            error "No worktree found for branch '$branch_name'"
         fi
-        
-        local selected_branch
-        selected_branch=$(echo "$worktrees" | grep "|$selected_path|" | cut -d'|' -f1)
-        
-        info "Moving to worktree for branch '$selected_branch'"
-        echo -e "${GREEN}✓${NC} Moved to worktree"
-        echo "  Branch: $selected_branch"
-        echo "  Location: $selected_path"
-        
-        # Output the directory path for shell function to capture
-        echo "GITWORK_CD:$selected_path" >&2
     fi
+    
+    if [ "$worktree_path" = "$current_dir" ]; then
+        warn "Already in worktree for branch '$branch_name'"
+        exit 0
+    fi
+    
+    info "Moving to worktree for branch '$branch_name'"
+    echo -e "${GREEN}✓${NC} Moved to worktree"
+    echo "  Branch: $branch_name"
+    echo "  Location: $worktree_path"
+    
+    # Output the directory path for shell function to capture
+    echo "GITWORK_CD:$worktree_path" >&2
 }
 
 # Main command router
