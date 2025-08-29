@@ -125,15 +125,29 @@ is_tmux_responsive() {
     return 1
 }
 
-# Find tmux pane by title
+# Find tmux pane by title (excluding current pane)
 find_tmux_pane_by_title() {
     local title="$1"
     if [ -n "${TMUX:-}" ] && is_tmux_responsive; then
+        # Get current pane ID to exclude it from search
+        local current_pane
+        current_pane=$(tmux display-message -p '#{pane_id}' 2>/dev/null || true)
+        
         # List all panes with their titles and IDs
         # Format: pane_id:pane_title
         local panes
         panes=$(tmux list-panes -a -F '#{pane_id}:#{pane_title}' 2>/dev/null || true)
-        if [ -n "$panes" ]; then
+        if [ -n "$panes" ] && [ -n "$current_pane" ]; then
+            # Find matching panes but exclude current pane
+            # Use exact matching for pane ID to avoid partial matches
+            echo "$panes" | while IFS=: read -r pane_id pane_title; do
+                if [ "$pane_title" = "$title" ] && [ "$pane_id" != "$current_pane" ]; then
+                    echo "$pane_id"
+                    break
+                fi
+            done
+        elif [ -n "$panes" ]; then
+            # Fallback if we can't get current pane ID
             echo "$panes" | grep -F ":$title" | cut -d: -f1 | head -1
         fi
     fi
@@ -143,8 +157,9 @@ find_tmux_pane_by_title() {
 switch_to_tmux_pane() {
     local pane_id="$1"
     if [ -n "$pane_id" ] && is_tmux_responsive; then
-        # Switch to the pane
-        tmux switch-client -t "$pane_id" 2>/dev/null || tmux select-pane -t "$pane_id" 2>/dev/null
+        # Try select-pane first (works within the same window)
+        # Then try switch-client (for panes in different windows/sessions)
+        tmux select-pane -t "$pane_id" 2>/dev/null || tmux switch-client -t "$pane_id" 2>/dev/null
         return $?
     fi
     return 1
