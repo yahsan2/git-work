@@ -60,7 +60,7 @@ Commands:
     
     Examples:
       git work move feature-x                     # Move to specific branch
-      git work move 2                             # Move to worktree number 2 from list
+      git work move 1                             # Move to worktree number 1 from list (0-based)
   
   back
     Return to the main repository from a worktree
@@ -76,7 +76,7 @@ Commands:
     Examples:
       git work finish                             # Remove current worktree
       git work finish feature-x                   # Remove specific branch's worktree
-      git work finish 2                           # Remove worktree number 2 from list
+      git work finish 1                           # Remove worktree number 1 from list (0-based)
 
 Version: $VERSION
 EOF
@@ -318,7 +318,7 @@ cmd_finish() {
         
         # Check if argument is a number
         if [[ "$branch_or_num" =~ ^[0-9]+$ ]]; then
-            # Get worktree by number
+            # Get worktree by number (0-based indexing)
             local worktrees
             worktrees=$(list_worktrees)
             
@@ -326,9 +326,10 @@ cmd_finish() {
                 error "No worktrees found"
             fi
             
-            # Get the specific line by number
+            # Get the specific line by number (convert 0-based to 1-based for sed)
+            local line_num=$((branch_or_num + 1))
             local selected_line
-            selected_line=$(echo "$worktrees" | sed -n "${branch_or_num}p")
+            selected_line=$(echo "$worktrees" | sed -n "${line_num}p")
             
             if [ -z "$selected_line" ]; then
                 error "Invalid worktree number: $branch_or_num"
@@ -475,7 +476,7 @@ cmd_list() {
     echo "Git worktrees:"
     echo
     
-    local i=1
+    local i=0
     while IFS='|' read -r branch path hash; do
         if [ "$path" = "$current_dir" ]; then
             echo "  $i) $branch (current)"
@@ -510,7 +511,7 @@ cmd_move() {
     
     # Check if argument is a number
     if [[ "$branch_or_num" =~ ^[0-9]+$ ]]; then
-        # Get worktree by number
+        # Get worktree by number (0-based indexing)
         local worktrees
         worktrees=$(list_worktrees)
         
@@ -518,9 +519,10 @@ cmd_move() {
             error "No worktrees found"
         fi
         
-        # Get the specific line by number
+        # Get the specific line by number (convert 0-based to 1-based for sed)
+        local line_num=$((branch_or_num + 1))
         local selected_line
-        selected_line=$(echo "$worktrees" | sed -n "${branch_or_num}p")
+        selected_line=$(echo "$worktrees" | sed -n "${line_num}p")
         
         if [ -z "$selected_line" ]; then
             error "Invalid worktree number: $branch_or_num"
