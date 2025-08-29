@@ -225,15 +225,27 @@ cmd_start() {
     # Open tmux pane if in tmux session
     if [ -n "${TMUX:-}" ]; then
         info "Opening new tmux pane in worktree directory"
-        tmux split-window -h -c "$abs_worktree_dir"
+        if tmux split-window -h -c "$abs_worktree_dir" 2>/dev/null; then
+            # Print final status with tmux message
+            echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
+            echo "  Location: $abs_worktree_dir"
+            echo "  Opened in new tmux pane (current pane unchanged)"
+        else
+            # tmux command failed, fall back to regular behavior
+            echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
+            echo "  Location: $abs_worktree_dir"
+            # Output the directory path for shell function to capture (hidden from normal output)
+            echo "GITWORK_CD:$abs_worktree_dir" >&2
+        fi
+    else
+        # Not in tmux, output directory for shell function to cd
+        # Print final status
+        echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
+        echo "  Location: $abs_worktree_dir"
+        
+        # Output the directory path for shell function to capture (hidden from normal output)
+        echo "GITWORK_CD:$abs_worktree_dir" >&2
     fi
-    
-    # Print final status
-    echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
-    echo "  Location: $abs_worktree_dir"
-    
-    # Output the directory path for shell function to capture (hidden from normal output)
-    echo "GITWORK_CD:$abs_worktree_dir" >&2
 }
 
 # Subcommand: back

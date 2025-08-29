@@ -93,8 +93,8 @@ git work finish 2
 1. **Smart branch detection**: Automatically detects if you're referencing a remote or local branch
 2. **Auto-fetch**: Fetches remote branches when needed
 3. **Worktree creation**: Creates a new worktree in `../<repo>--<branch>` by default
-4. **Directory navigation**: Automatically `cd` into the new worktree
-5. **Tmux integration**: Opens a new tmux pane if you're in a tmux session
+4. **Directory navigation**: Automatically `cd` into the new worktree (only when not in tmux)
+5. **Tmux integration**: Opens a new tmux pane in the worktree directory, keeping current pane unchanged
 
 ### `git work list`
 
