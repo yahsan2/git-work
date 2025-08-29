@@ -274,11 +274,24 @@ cmd_back() {
         
         info "Returning to main repository: $repo_name"
         
-        echo -e "${GREEN}✓${NC} Back to main repository"
-        echo "  Location: $abs_target_dir"
-        
-        # Output the directory path for shell function to capture (hidden from normal output)
-        echo "GITWORK_CD:$abs_target_dir" >&2
+        # If in tmux, close the pane and return to first pane
+        if [ -n "${TMUX:-}" ]; then
+            echo -e "${GREEN}✓${NC} Back to main repository"
+            echo "  Location: $abs_target_dir"
+            echo "  Closing tmux pane and returning to first pane"
+            
+            # Output the directory path for shell function to capture (hidden from normal output)
+            echo "GITWORK_CD:$abs_target_dir" >&2
+            
+            # Kill current pane and select first pane in the window
+            tmux kill-pane \; select-pane -t 0
+        else
+            echo -e "${GREEN}✓${NC} Back to main repository"
+            echo "  Location: $abs_target_dir"
+            
+            # Output the directory path for shell function to capture (hidden from normal output)
+            echo "GITWORK_CD:$abs_target_dir" >&2
+        fi
     else
         error "Current directory doesn't match expected pattern: <repo>--<branch>"
     fi

@@ -108,7 +108,9 @@ Shows all worktrees in the current repository with numbered entries for easy ref
 
 ### `git work back`
 
-Returns to the main repository from a worktree (assuming standard naming pattern).
+1. **Navigation**: Returns to the main repository from a worktree
+2. **Directory detection**: Uses standard naming pattern (`<repo>--<branch>`)
+3. **Tmux integration**: When in tmux, closes the current pane and returns to first pane
 
 ### `git work finish`
 
