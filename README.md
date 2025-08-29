@@ -26,11 +26,11 @@ This will install the `git work` command globally on your system.
 ### Commands Overview
 
 ```bash
-git work start <branch>    # Create worktree and switch to it
-git work list              # List all worktrees with numbers
-git work move <branch|num> # Move to a worktree by name or number
-git work back              # Return to main repository
-git work finish            # Remove current worktree and return to main
+git work start <branch>        # Create worktree and switch to it
+git work list                  # List all worktrees with numbers
+git work move <branch|num>     # Move to a worktree by name or number
+git work back                  # Return to main repository
+git work finish [branch|num]   # Remove worktree (current if not specified)
 ```
 
 ### Start working on a branch
@@ -78,6 +78,12 @@ git work back
 ```bash
 # Remove current worktree and return to main
 git work finish
+
+# Remove a specific worktree by branch name
+git work finish feature-x
+
+# Remove a worktree by number (from git work list)
+git work finish 2
 ```
 
 ## How it works
@@ -106,9 +112,11 @@ Returns to the main repository from a worktree (assuming standard naming pattern
 
 ### `git work finish`
 
-1. **Safety checks**: Warns about uncommitted changes and unpushed commits
-2. **Cleanup**: Removes the worktree using `git worktree remove`
-3. **Navigation**: Automatically returns to the main repository
+1. **Flexible removal**: Remove current worktree (no args), by branch name, or by number
+2. **Safety checks**: Warns about uncommitted changes and unpushed commits
+3. **Cleanup**: Removes the worktree using `git worktree remove`
+4. **Navigation**: Automatically returns to the main repository
+5. **Tmux integration**: When removing current worktree in tmux, closes the pane and returns to first pane
 
 ## Examples
 

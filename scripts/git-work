@@ -66,9 +66,17 @@ Commands:
     Return to the main repository from a worktree
     (Assumes worktree naming pattern: <repo>--<branch>)
   
-  finish
-    Remove the current worktree and return to the main repository
-    (Must be run from within a worktree)
+  finish [branch|number]
+    Remove a worktree and return to the main repository
+    
+    Arguments:
+      branch         Branch name or worktree number from list (optional)
+                     If not specified, removes current worktree
+    
+    Examples:
+      git work finish                             # Remove current worktree
+      git work finish feature-x                   # Remove specific branch's worktree
+      git work finish 2                           # Remove worktree number 2 from list
 
 Version: $VERSION
 EOF
@@ -266,81 +274,163 @@ cmd_back() {
 
 # Subcommand: finish
 cmd_finish() {
-    # Check if we're in a worktree
-    if ! is_worktree; then
-        error "Not in a git worktree"
+    local branch_or_num="${1:-}"
+    
+    # Check if we're in a git repository
+    if ! git rev-parse --git-dir &>/dev/null; then
+        error "Not in a git repository"
     fi
     
-    # Get current directory and branch
+    local worktree_path
+    local branch_name
     local current_dir
     current_dir=$(pwd)
+    local in_worktree=false
     
-    local current_branch
-    current_branch=$(git rev-parse --abbrev-ref HEAD)
-    
-    # Get worktree path and main repository path
-    local worktree_path
-    worktree_path=$(git rev-parse --show-toplevel)
-    
-    local main_repo_path
-    main_repo_path=$(git rev-parse --git-common-dir | sed 's/\.git\/worktrees\/.*//')
-    
-    # Check for uncommitted changes
-    if ! git diff --quiet || ! git diff --cached --quiet; then
-        warn "You have uncommitted changes in the worktree"
-        echo "Please commit or stash your changes before finishing."
-        exit 1
+    # Check if we're in a worktree
+    if is_worktree; then
+        in_worktree=true
     fi
     
-    # Check for unpushed commits
-    local unpushed_commits
-    unpushed_commits=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
-    
-    if [ "$unpushed_commits" != "0" ]; then
-        warn "You have $unpushed_commits unpushed commit(s)"
-        echo "Consider pushing your changes before finishing."
-        read -p "Continue anyway? [y/N] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            info "Finish cancelled"
-            exit 0
-        fi
-    fi
-    
-    # Parse repository name from worktree directory pattern
-    local current_dir_name
-    current_dir_name=$(basename "$current_dir")
-    
-    if [[ "$current_dir_name" =~ ^(.+)--(.+)$ ]]; then
-        local repo_name="${BASH_REMATCH[1]}"
-        local target_dir="../$repo_name"
-        
-        if [ ! -d "$target_dir" ]; then
-            error "Main repository not found at: $target_dir"
+    # Determine which worktree to remove
+    if [ -z "$branch_or_num" ]; then
+        # No argument provided - remove current worktree
+        if ! $in_worktree; then
+            error "Not in a git worktree. Specify a branch name or number to remove."
         fi
         
-        # Get absolute path for the main repository
-        local abs_target_dir
-        abs_target_dir=$(cd "$target_dir" && pwd)
-        
-        info "Finishing work on branch '$current_branch'"
-        
-        # Move to main repository first
-        cd "$abs_target_dir" || error "Failed to change to main repository"
-        
-        # Remove the worktree
-        info "Removing worktree at: $worktree_path"
-        git worktree remove "$worktree_path" --force || \
-            error "Failed to remove worktree. You may need to manually run: git worktree remove \"$worktree_path\""
-        
-        echo -e "${GREEN}✓${NC} Successfully finished work on branch '$current_branch'"
-        echo "  Worktree removed: $worktree_path"
-        echo "  Current location: $abs_target_dir"
-        
-        # Output the directory path for shell function to capture (hidden from normal output)
-        echo "GITWORK_CD:$abs_target_dir" >&2
+        worktree_path=$(git rev-parse --show-toplevel)
+        branch_name=$(git rev-parse --abbrev-ref HEAD)
     else
-        error "Current directory doesn't match expected pattern: <repo>--<branch>"
+        # Argument provided - find the worktree to remove
+        
+        # Check if argument is a number
+        if [[ "$branch_or_num" =~ ^[0-9]+$ ]]; then
+            # Get worktree by number
+            local worktrees
+            worktrees=$(list_worktrees)
+            
+            if [ -z "$worktrees" ]; then
+                error "No worktrees found"
+            fi
+            
+            # Get the specific line by number
+            local selected_line
+            selected_line=$(echo "$worktrees" | sed -n "${branch_or_num}p")
+            
+            if [ -z "$selected_line" ]; then
+                error "Invalid worktree number: $branch_or_num"
+            fi
+            
+            # Extract path and branch from the selected line
+            worktree_path=$(echo "$selected_line" | cut -d'|' -f2)
+            branch_name=$(echo "$selected_line" | cut -d'|' -f1)
+        else
+            # Treat as branch name
+            branch_name="$branch_or_num"
+            worktree_path=$(get_worktree_path "$branch_name")
+            
+            if [ -z "$worktree_path" ]; then
+                error "No worktree found for branch '$branch_name'"
+            fi
+        fi
+    fi
+    
+    # Get main repository path
+    local main_repo_path
+    if $in_worktree; then
+        main_repo_path=$(git rev-parse --git-common-dir | sed 's/\.git\/worktrees\/.*//')
+    else
+        main_repo_path=$(git rev-parse --show-toplevel)
+    fi
+    
+    # If we're removing a different worktree than the current one, we need to check it
+    if [ "$worktree_path" != "$current_dir" ]; then
+        # Save current directory to return later if needed
+        local return_to_dir="$current_dir"
+        
+        # Move to the worktree to check for uncommitted changes
+        cd "$worktree_path" || error "Failed to access worktree at: $worktree_path"
+        
+        # Check for uncommitted changes
+        if ! git diff --quiet || ! git diff --cached --quiet; then
+            warn "The worktree for branch '$branch_name' has uncommitted changes"
+            echo "Please commit or stash changes before finishing."
+            cd "$return_to_dir"
+            exit 1
+        fi
+        
+        # Check for unpushed commits
+        local unpushed_commits
+        unpushed_commits=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
+        
+        if [ "$unpushed_commits" != "0" ]; then
+            warn "Branch '$branch_name' has $unpushed_commits unpushed commit(s)"
+            echo "Consider pushing changes before finishing."
+            read -p "Continue anyway? [y/N] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                info "Finish cancelled"
+                cd "$return_to_dir"
+                exit 0
+            fi
+        fi
+        
+        # Return to original directory
+        cd "$return_to_dir"
+    else
+        # We're removing the current worktree
+        
+        # Check for uncommitted changes
+        if ! git diff --quiet || ! git diff --cached --quiet; then
+            warn "You have uncommitted changes in the worktree"
+            echo "Please commit or stash your changes before finishing."
+            exit 1
+        fi
+        
+        # Check for unpushed commits
+        local unpushed_commits
+        unpushed_commits=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
+        
+        if [ "$unpushed_commits" != "0" ]; then
+            warn "You have $unpushed_commits unpushed commit(s)"
+            echo "Consider pushing your changes before finishing."
+            read -p "Continue anyway? [y/N] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                info "Finish cancelled"
+                exit 0
+            fi
+        fi
+    fi
+    
+    info "Finishing work on branch '$branch_name'"
+    
+    # If we're in the worktree being removed, move to main repository first
+    if [ "$worktree_path" = "$current_dir" ]; then
+        cd "$main_repo_path" || error "Failed to change to main repository"
+    fi
+    
+    # Remove the worktree
+    info "Removing worktree at: $worktree_path"
+    git worktree remove "$worktree_path" --force || \
+        error "Failed to remove worktree. You may need to manually run: git worktree remove \"$worktree_path\""
+    
+    echo -e "${GREEN}✓${NC} Successfully finished work on branch '$branch_name'"
+    echo "  Worktree removed: $worktree_path"
+    
+    # If we were in the removed worktree, output new location
+    if [ "$worktree_path" = "$current_dir" ]; then
+        echo "  Current location: $main_repo_path"
+        # Output the directory path for shell function to capture (hidden from normal output)
+        echo "GITWORK_CD:$main_repo_path" >&2
+        
+        # If in tmux and no arguments were provided (removing current worktree), close the pane
+        if [ -n "${TMUX:-}" ] && [ -z "$branch_or_num" ]; then
+            info "Closing tmux pane and returning to first pane"
+            # Kill current pane and select first pane in the window
+            tmux kill-pane \; select-pane -t 0
+        fi
     fi
 }
 
