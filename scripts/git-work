@@ -115,6 +115,27 @@ get_worktree_path() {
     '
 }
 
+# Find tmux pane by title
+find_tmux_pane_by_title() {
+    local title="$1"
+    if [ -n "${TMUX:-}" ]; then
+        # List all panes with their titles and IDs
+        # Format: pane_id:pane_title
+        tmux list-panes -a -F '#{pane_id}:#{pane_title}' 2>/dev/null | grep -F ":$title" | cut -d: -f1 | head -1
+    fi
+}
+
+# Switch to tmux pane by ID
+switch_to_tmux_pane() {
+    local pane_id="$1"
+    if [ -n "$pane_id" ]; then
+        # Switch to the pane
+        tmux switch-client -t "$pane_id" 2>/dev/null || tmux select-pane -t "$pane_id" 2>/dev/null
+        return $?
+    fi
+    return 1
+}
+
 # List all worktrees with formatting
 list_worktrees() {
     git worktree list | while read -r path hash rest; do
@@ -573,20 +594,45 @@ cmd_move() {
     
     info "Moving to worktree for branch '$branch_name'"
     
-    # If in tmux and in main repository, open new pane instead of cd
-    if [ -n "${TMUX:-}" ] && $in_main_repo; then
-        info "Opening new tmux pane in worktree directory"
-        # Set current pane title to [main]
-        tmux select-pane -T "[main]"
-        if tmux split-window -h -c "$worktree_path" 2>/dev/null; then
-            # Set new pane title to branch name
-            tmux select-pane -T "[$branch_name]" -t '{last}'
-            echo -e "${GREEN}✓${NC} Moved to worktree"
-            echo "  Branch: $branch_name"
-            echo "  Location: $worktree_path"
-            echo "  Opened in new tmux pane with title: [$branch_name]"
+    # If in tmux, check if pane already exists for this branch
+    if [ -n "${TMUX:-}" ]; then
+        local existing_pane
+        existing_pane=$(find_tmux_pane_by_title "[$branch_name]")
+        
+        if [ -n "$existing_pane" ]; then
+            # Pane already exists, switch to it
+            info "Found existing tmux pane for branch '$branch_name'"
+            if switch_to_tmux_pane "$existing_pane"; then
+                echo -e "${GREEN}✓${NC} Switched to existing pane"
+                echo "  Branch: $branch_name"
+                echo "  Location: $worktree_path"
+                echo "  Switched to existing tmux pane: [$branch_name]"
+                exit 0
+            fi
+        fi
+        
+        # No existing pane found, create new one if in main repo
+        if $in_main_repo; then
+            info "Opening new tmux pane in worktree directory"
+            # Set current pane title to [main]
+            tmux select-pane -T "[main]"
+            if tmux split-window -h -c "$worktree_path" 2>/dev/null; then
+                # Set new pane title to branch name
+                tmux select-pane -T "[$branch_name]" -t '{last}'
+                echo -e "${GREEN}✓${NC} Moved to worktree"
+                echo "  Branch: $branch_name"
+                echo "  Location: $worktree_path"
+                echo "  Opened in new tmux pane with title: [$branch_name]"
+            else
+                # tmux command failed, fall back to regular behavior
+                echo -e "${GREEN}✓${NC} Moved to worktree"
+                echo "  Branch: $branch_name"
+                echo "  Location: $worktree_path"
+                # Output the directory path for shell function to capture
+                echo "GITWORK_CD:$worktree_path" >&2
+            fi
         else
-            # tmux command failed, fall back to regular behavior
+            # In worktree, use regular cd
             echo -e "${GREEN}✓${NC} Moved to worktree"
             echo "  Branch: $branch_name"
             echo "  Location: $worktree_path"
