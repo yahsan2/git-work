@@ -136,6 +136,23 @@ switch_to_tmux_pane() {
     return 1
 }
 
+# Count tmux panes in current window
+count_tmux_panes() {
+    if [ -n "${TMUX:-}" ]; then
+        tmux list-panes 2>/dev/null | wc -l | tr -d ' '
+    else
+        echo "0"
+    fi
+}
+
+# Get the right pane when there are 2 panes (returns pane index)
+get_right_pane() {
+    if [ -n "${TMUX:-}" ]; then
+        # Get the pane on the right (higher x position)
+        tmux list-panes -F '#{pane_index}:#{pane_left}' 2>/dev/null | sort -t: -k2 -nr | head -1 | cut -d: -f1
+    fi
+}
+
 # List all worktrees with formatting
 list_worktrees() {
     git worktree list | while read -r path hash rest; do
@@ -250,13 +267,42 @@ cmd_start() {
         if ! is_worktree; then
             tmux select-pane -T "[main]"
         fi
-        if tmux split-window -h -c "$abs_worktree_dir" 2>/dev/null; then
+        
+        # Check pane count to determine split direction
+        local pane_count
+        pane_count=$(count_tmux_panes)
+        
+        local split_succeeded=false
+        if [ "$pane_count" = "2" ]; then
+            # If there are exactly 2 panes, split vertically below the right pane
+            local right_pane
+            right_pane=$(get_right_pane)
+            if [ -n "$right_pane" ]; then
+                info "Creating pane below the right pane"
+                if tmux split-window -v -t "$right_pane" -c "$abs_worktree_dir" 2>/dev/null; then
+                    split_succeeded=true
+                fi
+            fi
+        fi
+        
+        # If not 2 panes or vertical split failed, use horizontal split
+        if ! $split_succeeded; then
+            if tmux split-window -h -c "$abs_worktree_dir" 2>/dev/null; then
+                split_succeeded=true
+            fi
+        fi
+        
+        if $split_succeeded; then
             # Set new pane title to branch name
             tmux select-pane -T "[$branch_name]" -t '{last}'
             # Print final status with tmux message
             echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
             echo "  Location: $abs_worktree_dir"
-            echo "  Opened in new tmux pane with title: [$branch_name]"
+            if [ "$pane_count" = "2" ]; then
+                echo "  Opened in new tmux pane below right pane with title: [$branch_name]"
+            else
+                echo "  Opened in new tmux pane with title: [$branch_name]"
+            fi
         else
             # tmux command failed, fall back to regular behavior
             echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
@@ -616,13 +662,42 @@ cmd_move() {
             info "Opening new tmux pane in worktree directory"
             # Set current pane title to [main]
             tmux select-pane -T "[main]"
-            if tmux split-window -h -c "$worktree_path" 2>/dev/null; then
+            
+            # Check pane count to determine split direction
+            local pane_count
+            pane_count=$(count_tmux_panes)
+            
+            local split_succeeded=false
+            if [ "$pane_count" = "2" ]; then
+                # If there are exactly 2 panes, split vertically below the right pane
+                local right_pane
+                right_pane=$(get_right_pane)
+                if [ -n "$right_pane" ]; then
+                    info "Creating pane below the right pane"
+                    if tmux split-window -v -t "$right_pane" -c "$worktree_path" 2>/dev/null; then
+                        split_succeeded=true
+                    fi
+                fi
+            fi
+            
+            # If not 2 panes or vertical split failed, use horizontal split
+            if ! $split_succeeded; then
+                if tmux split-window -h -c "$worktree_path" 2>/dev/null; then
+                    split_succeeded=true
+                fi
+            fi
+            
+            if $split_succeeded; then
                 # Set new pane title to branch name
                 tmux select-pane -T "[$branch_name]" -t '{last}'
                 echo -e "${GREEN}✓${NC} Moved to worktree"
                 echo "  Branch: $branch_name"
                 echo "  Location: $worktree_path"
-                echo "  Opened in new tmux pane with title: [$branch_name]"
+                if [ "$pane_count" = "2" ]; then
+                    echo "  Opened in new tmux pane below right pane with title: [$branch_name]"
+                else
+                    echo "  Opened in new tmux pane with title: [$branch_name]"
+                fi
             else
                 # tmux command failed, fall back to regular behavior
                 echo -e "${GREEN}✓${NC} Moved to worktree"
