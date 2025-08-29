@@ -1,0 +1,37 @@
+{
+  "name": "git-tmux-work",
+  "version": "1.0.0",
+  "description": "Git worktree management tool with tmux integration",
+  "bin": {
+    "git-tmux-work": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "echo \"No tests yet\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/git-tmux-work.git"
+  },
+  "keywords": [
+    "git",
+    "worktree",
+    "tmux",
+    "development",
+    "workflow",
+    "productivity",
+    "git-workflow",
+    "branch-management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "preferGlobal": false,
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ]
+}
