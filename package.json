@@ -10,11 +10,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yahsan2/git-work.git"
+    "url": "git+https://github.com/yahsan2/git-work-space.git"
   },
-  "homepage": "https://github.com/yahsan2/git-work#readme",
+  "homepage": "https://github.com/yahsan2/git-work-space#readme",
   "bugs": {
-    "url": "https://github.com/yahsan2/git-work/issues"
+    "url": "https://github.com/yahsan2/git-work-space/issues"
   },
   "keywords": [
     "git",
