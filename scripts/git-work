@@ -45,6 +45,23 @@ Commands:
       git work start origin/feature-y             # From remote branch
       git work start hotfix ../hotfix-dir main    # Custom dir and base
   
+  list
+    List all worktrees (alias for git worktree list)
+    
+    Examples:
+      git work list                                # List all worktrees
+      git work list --porcelain                    # Machine-readable format
+  
+  move [branch]
+    Move to a different worktree
+    
+    Arguments:
+      branch         Branch name to move to (optional)
+    
+    Examples:
+      git work move feature-x                     # Move to specific branch
+      git work move                                # Interactive selection with fzf
+  
   back
     Return to the main repository from a worktree
     (Assumes worktree naming pattern: <repo>--<branch>)
@@ -79,6 +96,26 @@ is_worktree() {
     git rev-parse --is-inside-work-tree &>/dev/null && \
     [ -n "$(git rev-parse --git-common-dir 2>/dev/null)" ] && \
     [ "$(git rev-parse --git-common-dir)" != "$(git rev-parse --git-dir)" ]
+}
+
+# Get worktree path for a given branch
+get_worktree_path() {
+    local branch="$1"
+    git worktree list --porcelain | awk -v branch="$branch" '
+        /^worktree / { path = $2 }
+        /^branch / && $2 == "refs/heads/" branch { print path; exit }
+    '
+}
+
+# List all worktrees with formatting
+list_worktrees() {
+    git worktree list | while read -r path hash rest; do
+        # Extract branch name from [branch] format
+        if [[ "$rest" =~ \[([^\]]+)\] ]]; then
+            local branch="${BASH_REMATCH[1]}"
+            echo "$branch|$path|$hash"
+        fi
+    done
 }
 
 # Subcommand: start
@@ -307,6 +344,131 @@ cmd_finish() {
     fi
 }
 
+# Subcommand: list
+cmd_list() {
+    # Check if we're in a git repository
+    if ! git rev-parse --git-dir &>/dev/null; then
+        error "Not in a git repository"
+    fi
+    
+    # Simply pass through to git worktree list
+    git worktree list "$@"
+}
+
+# Subcommand: move
+cmd_move() {
+    local branch_arg="${1:-}"
+    
+    # Check if we're in a git repository
+    if ! git rev-parse --git-dir &>/dev/null; then
+        error "Not in a git repository"
+    fi
+    
+    # Get current directory for comparison
+    local current_dir
+    current_dir=$(pwd)
+    
+    if [ -n "$branch_arg" ]; then
+        # Direct move to specified branch
+        local worktree_path
+        worktree_path=$(get_worktree_path "$branch_arg")
+        
+        if [ -z "$worktree_path" ]; then
+            error "No worktree found for branch '$branch_arg'"
+        fi
+        
+        if [ "$worktree_path" = "$current_dir" ]; then
+            warn "Already in worktree for branch '$branch_arg'"
+            exit 0
+        fi
+        
+        info "Moving to worktree for branch '$branch_arg'"
+        echo -e "${GREEN}✓${NC} Moved to worktree"
+        echo "  Branch: $branch_arg"
+        echo "  Location: $worktree_path"
+        
+        # Output the directory path for shell function to capture
+        echo "GITWORK_CD:$worktree_path" >&2
+    else
+        # Interactive selection mode
+        local worktrees
+        worktrees=$(list_worktrees)
+        
+        if [ -z "$worktrees" ]; then
+            error "No worktrees found"
+        fi
+        
+        local selected_path
+        
+        # Check if fzf is available and we're in an interactive terminal
+        if command -v fzf &>/dev/null && [ -t 0 ] && [ -t 1 ]; then
+            # Use fzf for interactive selection
+            local selected
+            selected=$(echo "$worktrees" | awk -F'|' '{printf "%-30s %s\n", $1, $2}' | \
+                       fzf --header="Select worktree to move to" --reverse --height=40% 2>/dev/null | \
+                       awk '{print $1}')
+            
+            if [ -z "$selected" ]; then
+                info "Move cancelled"
+                exit 0
+            fi
+            
+            selected_path=$(echo "$worktrees" | grep "^$selected|" | cut -d'|' -f2)
+        else
+            # Fallback to numbered selection
+            echo "Available worktrees:" >&2
+            echo >&2
+            
+            local i=1
+            while IFS='|' read -r branch path hash; do
+                if [ "$path" = "$current_dir" ]; then
+                    echo "  $i) $branch (current)" >&2
+                else
+                    echo "  $i) $branch" >&2
+                fi
+                echo "     Path: $path" >&2
+                ((i++))
+            done <<< "$worktrees"
+            
+            echo >&2
+            # Always show prompt on stderr and read from stdin
+            >&2 printf "Select worktree number (or press Enter to cancel): "
+            read selection
+            
+            if [ -z "$selection" ]; then
+                info "Move cancelled"
+                exit 0
+            fi
+            
+            if ! [[ "$selection" =~ ^[0-9]+$ ]]; then
+                error "Invalid selection: $selection"
+            fi
+            
+            selected_path=$(echo "$worktrees" | sed -n "${selection}p" | cut -d'|' -f2)
+            
+            if [ -z "$selected_path" ]; then
+                error "Invalid selection: $selection"
+            fi
+        fi
+        
+        if [ "$selected_path" = "$current_dir" ]; then
+            warn "Already in selected worktree"
+            exit 0
+        fi
+        
+        local selected_branch
+        selected_branch=$(echo "$worktrees" | grep "|$selected_path|" | cut -d'|' -f1)
+        
+        info "Moving to worktree for branch '$selected_branch'"
+        echo -e "${GREEN}✓${NC} Moved to worktree"
+        echo "  Branch: $selected_branch"
+        echo "  Location: $selected_path"
+        
+        # Output the directory path for shell function to capture
+        echo "GITWORK_CD:$selected_path" >&2
+    fi
+}
+
 # Main command router
 main() {
     local subcommand="${1:-}"
@@ -315,6 +477,14 @@ main() {
         start)
             shift
             cmd_start "$@"
+            ;;
+        list)
+            shift
+            cmd_list "$@"
+            ;;
+        move)
+            shift
+            cmd_move "$@"
             ;;
         back)
             shift

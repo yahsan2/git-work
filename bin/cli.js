@@ -132,9 +132,12 @@ function install() {
     console.log('\n✨ Installation complete!');
     console.log('\n🔄 Please reload your shell configuration:');
     console.log(`   source ${shellConfig}`);
-    console.log('\nThen you can use:');
-    console.log('   git work start <branch>  # Will automatically cd to the worktree');
-    console.log('   git work back           # Will automatically cd back to main repo');
+    console.log('\n📚 Available commands:');
+    console.log('   git work start <branch>  # Create worktree and cd to it');
+    console.log('   git work list            # List all worktrees');
+    console.log('   git work move [branch]   # Move to a worktree (interactive if no branch)');
+    console.log('   git work back            # Return to main repository');
+    console.log('   git work finish          # Remove current worktree and return to main');
     
   } catch (error) {
     console.error(`❌ Error during installation: ${error.message}`);
