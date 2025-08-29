@@ -139,7 +139,7 @@ function install() {
   } catch (error) {
     console.error(`❌ Error during installation: ${error.message}`);
     if (error.code === 'EACCES') {
-      console.error('   Try running with sudo: sudo npx git-tmux-work install');
+      console.error('   Try running with sudo: sudo npx git-work-space install');
     }
     process.exit(1);
   }
@@ -161,7 +161,7 @@ function uninstall() {
       } catch (error) {
         console.error(`❌ Error removing ${scriptPath}: ${error.message}`);
         if (error.code === 'EACCES') {
-          console.error('   Try running with sudo: sudo npx git-tmux-work uninstall');
+          console.error('   Try running with sudo: sudo npx git-work-space uninstall');
         }
       }
     }
@@ -201,7 +201,7 @@ function main() {
       uninstall();
       break;
     default:
-      console.log('Usage: npx git-tmux-work <command>');
+      console.log('Usage: npx git-work-space <command>');
       console.log('\nCommands:');
       console.log('  install    Install the git-work command');
       console.log('  uninstall  Remove the git-work command');

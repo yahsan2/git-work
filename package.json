@@ -1,9 +1,9 @@
 {
-  "name": "git-tmux-work",
+  "name": "git-work-space",
   "version": "1.0.0",
-  "description": "Git worktree management tool with tmux integration",
+  "description": "Git worktree management tool with automatic directory navigation and tmux integration",
   "bin": {
-    "git-tmux-work": "./bin/cli.js"
+    "git-work-space": "./bin/cli.js"
   },
   "scripts": {
     "test": "echo \"No tests yet\""

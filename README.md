@@ -1,19 +1,20 @@
-# git-tmux-work
+# git-work-space
 
-A Git worktree management tool with tmux integration for efficient parallel development.
+A Git worktree management tool for efficient parallel development with automatic directory navigation.
 
 ## Features
 
 - 🚀 Quick worktree creation with smart branch handling
 - 📦 Automatic remote branch fetching
-- 🖥️ Seamless tmux integration (auto-split panes)
+- 📁 Automatic directory navigation (cd) after operations
+- 🖥️ Optional tmux integration (auto-split panes when available)
 - 🔄 Easy navigation between worktrees and main repository
 - 🎯 Intuitive naming convention for worktree directories
 
 ## Installation
 
 ```bash
-npx git-tmux-work install
+npx git-work-space install
 ```
 
 This will install the `git work` command globally on your system.
@@ -117,7 +118,7 @@ projects/
 Git worktrees allow you to have multiple branches checked out simultaneously, which is perfect for:
 
 - 🔧 Quick hotfixes without stashing current work
-- 👀 Code review while working on features  
+- 👀 Code review while working on features
 - 🔄 Parallel development on multiple features
 - 📊 Comparing implementations across branches
 
