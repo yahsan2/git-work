@@ -169,19 +169,22 @@ cmd_start() {
     
     info "Worktree created at: $worktree_dir"
     
-    # Change to worktree directory
-    cd "$worktree_dir" || error "Failed to change to worktree directory"
-    info "Changed to worktree directory"
+    # Get absolute path for the worktree
+    local abs_worktree_dir
+    abs_worktree_dir=$(cd "$worktree_dir" && pwd)
     
     # Open tmux pane if in tmux session
     if [ -n "${TMUX:-}" ]; then
-        info "Opening new tmux pane"
-        tmux split-window -h -c "#{pane_current_path}"
+        info "Opening new tmux pane in worktree directory"
+        tmux split-window -h -c "$abs_worktree_dir"
     fi
     
     # Print final status
     echo -e "${GREEN}✓${NC} Successfully started work on branch '$branch_name'"
-    echo "  Location: $(pwd)"
+    echo "  Location: $abs_worktree_dir"
+    
+    # Output the directory path for shell function to capture (hidden from normal output)
+    echo "GITWORK_CD:$abs_worktree_dir" >&2
 }
 
 # Subcommand: back
@@ -204,11 +207,17 @@ cmd_back() {
             error "Main repository not found at: $target_dir"
         fi
         
+        # Get absolute path for the main repository
+        local abs_target_dir
+        abs_target_dir=$(cd "$target_dir" && pwd)
+        
         info "Returning to main repository: $repo_name"
-        cd "$target_dir" || error "Failed to change to main repository"
         
         echo -e "${GREEN}✓${NC} Back to main repository"
-        echo "  Location: $(pwd)"
+        echo "  Location: $abs_target_dir"
+        
+        # Output the directory path for shell function to capture (hidden from normal output)
+        echo "GITWORK_CD:$abs_target_dir" >&2
     else
         error "Current directory doesn't match expected pattern: <repo>--<branch>"
     fi
